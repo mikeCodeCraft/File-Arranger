@@ -163,7 +163,7 @@ def undo_from_selected_log():
 
     # UI
     window = tk.Toplevel(root)
-    window.title("Undo from Log")
+    window.title("Undo from Log |mikeCodeCraft|")
     window.geometry("500x180")
 
     tk.Label(window, text="Select a log to undo:").pack(pady=10)
@@ -208,11 +208,11 @@ def view_log_history():
         return
 
     history_window = tk.Toplevel(root)
-    history_window.title("Log History")
+    history_window.title("Log History |mikeCodeCraft|")
     history_window.geometry("700x400")
 
     # --- Title ---
-    tk.Label(history_window, text="📜 Organizer Log History", font=("Arial", 14)).pack(pady=5)
+    tk.Label(history_window, text="📜 Organizer Log History |mikeCodeCraft|", font=("Arial", 16)).pack(pady=5)
 
     frame = tk.Frame(history_window)
     frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
@@ -281,7 +281,7 @@ def view_log_history():
 
 # --- GUI Setup ---
 root = tk.Tk()
-root.title("File Organizer")
+root.title("File Organizer |mikeCodeCraft|")
 root.geometry("500x400")
 
 folder_path = tk.StringVar()
