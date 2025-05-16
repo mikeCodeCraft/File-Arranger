@@ -1,6 +1,7 @@
 import os
 import json
 import tkinter as tk
+from tkinter import ttk
 from tkinter import filedialog, messagebox
 from datetime import datetime
 import glob
@@ -133,6 +134,66 @@ def undo_organize():
     except Exception as e:
         messagebox.showerror("Error", f"Undo failed:\n{e}")
 
+def undo_from_selected_log():
+    log_files = sorted(glob.glob("logs/organizer_log_*.json"), reverse=True)
+
+    if not log_files:
+        messagebox.showinfo("No Logs", "No organizer logs found.")
+        return
+
+    window = tk.Toplevel(root)
+    window.title("Undo from Log")
+    window.geometry("500x150")
+
+    tk.Label(window, text="Select a log to undo:").pack(pady=10)
+
+    selected_log = tk.StringVar(value=log_files[0])
+    dropdown = ttk.Combobox(window, values=log_files, textvariable=selected_log, width=60)
+    dropdown.pack(pady=5)
+
+    def perform_undo():
+        log_file = selected_log.get()
+        try:
+            with open(log_file, "r") as f:
+                moved_files = json.load(f)
+
+            for src, dest in moved_files.items():
+                if os.path.exists(src):
+                    os.makedirs(os.path.dirname(dest), exist_ok=True)
+                    shutil.move(src, dest)
+
+            os.remove(log_file)
+            messagebox.showinfo("Undo Complete", f"Files from {os.path.basename(log_file)} restored.")
+            list_files(folder_path.get())
+            window.destroy()
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Undo failed:\n{e}")
+
+    tk.Button(window, text="Undo", command=perform_undo).pack(pady=10)
+
+def view_log_history():
+    log_files = sorted(glob.glob("logs/organizer_log_*.json"), reverse=True)
+
+    if not log_files:
+        messagebox.showinfo("Log History", "No logs found.")
+        return
+
+    history_window = tk.Toplevel(root)
+    history_window.title("Log History")
+    history_window.geometry("500x300")
+
+    tk.Label(history_window, text="Organizer Logs", font=("Arial", 14)).pack(pady=10)
+
+    text_box = tk.Text(history_window, wrap=tk.WORD)
+    text_box.pack(expand=True, fill=tk.BOTH, padx=10, pady=10)
+
+    for log_file in log_files:
+        size_kb = round(os.path.getsize(log_file) / 1024, 2)
+        text_box.insert(tk.END, f"{os.path.basename(log_file)} — {size_kb} KB\n")
+
+    text_box.config(state=tk.DISABLED)
+
 
 
 # --- GUI Setup ---
@@ -150,6 +211,9 @@ tk.Entry(frame, textvariable=folder_path, width=60).pack(pady=5)
 tk.Button(frame, text="Browse Folder", command=select_folder).pack(pady=5)
 tk.Button(frame, text="Organize Files", command=organize_files).pack(pady=5)
 tk.Button(frame, text="Undo Last Organize", command=undo_organize).pack(pady=5)
+tk.Button(frame, text="Undo from Log...", command=undo_from_selected_log).pack(pady=5)
+tk.Button(frame, text="View Log History", command=view_log_history).pack(pady=5)
+
 
 tk.Label(root, text="Files in Folder:").pack()
 files_listbox = tk.Listbox(root, width=60, height=15)
