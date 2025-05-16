@@ -3,3 +3,4 @@ screenshotenv/
 build/
 node_modules/
 dist/logs
+file_organizer.spec
