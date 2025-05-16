@@ -1,1 +1,5 @@
 logs/
+screenshotenv/
+build/
+node_modules/
+dist/logs
