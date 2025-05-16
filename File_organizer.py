@@ -15,6 +15,7 @@ FILE_CATEGORIES = {
     "Archives": [".zip", ".rar", ".7z", ".tar", ".gz"],
     "Code": [".py", ".js", ".html", ".css", ".java", ".c", ".cpp", ".json"],
     "Installers": [".exe", ".msi", ".dmg", ".deb"],
+    "Texts": [".txt", ".csv", ".log"],
 }
 
 
@@ -65,8 +66,12 @@ def organize_files():
         os.makedirs("logs", exist_ok=True)
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         log_file = f"logs/organizer_log_{timestamp}.json"
+        log_data = {
+            "folder": path,
+            "moved_files": moved_files,
+        }
         with open(log_file, "w") as f:
-            json.dump(moved_files, f)
+            json.dump(log_data, f)
 
         messagebox.showinfo("Success", "Files have been organized!")
         list_files(path)
@@ -133,7 +138,6 @@ def undo_organize():
 
     except Exception as e:
         messagebox.showerror("Error", f"Undo failed:\n{e}")
-
 def undo_from_selected_log():
     log_files = sorted(glob.glob("logs/organizer_log_*.json"), reverse=True)
 
@@ -141,21 +145,44 @@ def undo_from_selected_log():
         messagebox.showinfo("No Logs", "No organizer logs found.")
         return
 
+    # Build display labels
+    display_labels = []
+    file_map = {}  # maps label to actual filename
+
+    for file in log_files:
+        try:
+            with open(file, "r") as f:
+                log_data = json.load(f)
+                folder = log_data.get("folder", "Unknown Folder")
+                timestamp_str = os.path.basename(file).replace("organizer_log_", "").replace(".json", "").replace("_", " ")
+                label = f"{os.path.basename(folder)} — {timestamp_str}"
+                display_labels.append(label)
+                file_map[label] = file
+        except Exception:
+            continue  # skip unreadable logs
+
+    # UI
     window = tk.Toplevel(root)
     window.title("Undo from Log")
-    window.geometry("500x150")
+    window.geometry("500x180")
 
     tk.Label(window, text="Select a log to undo:").pack(pady=10)
 
-    selected_log = tk.StringVar(value=log_files[0])
-    dropdown = ttk.Combobox(window, values=log_files, textvariable=selected_log, width=60)
+    selected_label = tk.StringVar(value=display_labels[0])
+    dropdown = ttk.Combobox(window, values=display_labels, textvariable=selected_label, state="readonly", width=60)
     dropdown.pack(pady=5)
 
     def perform_undo():
-        log_file = selected_log.get()
+        selected = selected_label.get()
+        log_file = file_map.get(selected)
+        if not log_file:
+            messagebox.showerror("Error", "Log file not found.")
+            return
+
         try:
             with open(log_file, "r") as f:
-                moved_files = json.load(f)
+                log_data = json.load(f)
+                moved_files = log_data.get("moved_files", {})
 
             for src, dest in moved_files.items():
                 if os.path.exists(src):
@@ -163,7 +190,7 @@ def undo_from_selected_log():
                     shutil.move(src, dest)
 
             os.remove(log_file)
-            messagebox.showinfo("Undo Complete", f"Files from {os.path.basename(log_file)} restored.")
+            messagebox.showinfo("Undo Complete", f"Files from {selected} restored.")
             list_files(folder_path.get())
             window.destroy()
 
@@ -171,6 +198,7 @@ def undo_from_selected_log():
             messagebox.showerror("Error", f"Undo failed:\n{e}")
 
     tk.Button(window, text="Undo", command=perform_undo).pack(pady=10)
+
 
 def view_log_history():
     log_files = sorted(glob.glob("logs/organizer_log_*.json"), reverse=True)
@@ -181,18 +209,73 @@ def view_log_history():
 
     history_window = tk.Toplevel(root)
     history_window.title("Log History")
-    history_window.geometry("500x300")
+    history_window.geometry("700x400")
 
-    tk.Label(history_window, text="Organizer Logs", font=("Arial", 14)).pack(pady=10)
+    # --- Title ---
+    tk.Label(history_window, text="📜 Organizer Log History", font=("Arial", 14)).pack(pady=5)
 
-    text_box = tk.Text(history_window, wrap=tk.WORD)
-    text_box.pack(expand=True, fill=tk.BOTH, padx=10, pady=10)
+    frame = tk.Frame(history_window)
+    frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
-    for log_file in log_files:
-        size_kb = round(os.path.getsize(log_file) / 1024, 2)
-        text_box.insert(tk.END, f"{os.path.basename(log_file)} — {size_kb} KB\n")
+    # --- Log List ---
+    log_listbox = tk.Listbox(frame, width=40)
+    log_listbox.pack(side=tk.LEFT, fill=tk.Y)
 
-    text_box.config(state=tk.DISABLED)
+    # --- Scrollbar ---
+    scrollbar = tk.Scrollbar(frame, orient=tk.VERTICAL, command=log_listbox.yview)
+    scrollbar.pack(side=tk.LEFT, fill=tk.Y)
+    log_listbox.config(yscrollcommand=scrollbar.set)
+
+    # --- Preview Area ---
+    preview_box = tk.Text(frame, wrap=tk.WORD, state=tk.DISABLED)
+    preview_box.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10)
+
+    # --- Log Metadata ---
+    display_labels = []
+    file_map = {}
+
+    for file in log_files:
+        try:
+            with open(file, "r") as f:
+                data = json.load(f)
+                folder = os.path.basename(data.get("folder", "Unknown"))
+                moved = data.get("moved_files", {})
+                timestamp = os.path.basename(file).replace("organizer_log_", "").replace(".json", "").replace("_", " ")
+                label = f"{folder} — {timestamp} — {len(moved)} file{'s' if len(moved) != 1 else ''}"
+                display_labels.append(label)
+                file_map[label] = file
+        except:
+            continue
+
+    for label in display_labels:
+        log_listbox.insert(tk.END, label)
+
+    # --- On Select Show Preview ---
+    def show_preview(event):
+        selection = log_listbox.curselection()
+        if not selection:
+            return
+        selected_label = log_listbox.get(selection[0])
+        filepath = file_map[selected_label]
+    
+        preview_box.config(state=tk.NORMAL)
+        preview_box.delete(1.0, tk.END)
+    
+        try:
+            with open(filepath, "r") as f:
+                data = json.load(f)
+                moved_files = data.get("moved_files", {})
+                for src, dest in moved_files.items():
+                    filename = os.path.basename(src)
+                    folder_name = os.path.basename(os.path.dirname(dest))
+                    preview_box.insert(tk.END, f"🔹 {filename} → {folder_name}\n")
+        except Exception as e:
+            preview_box.insert(tk.END, f"⚠️ Error loading preview: {e}")
+        
+        preview_box.config(state=tk.DISABLED)
+    
+
+    log_listbox.bind("<<ListboxSelect>>", show_preview)
 
 
 
